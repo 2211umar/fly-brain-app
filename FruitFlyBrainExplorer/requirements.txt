@@ -1,0 +1,4 @@
+streamlit
+pandas
+neuprint-python
+plotly
