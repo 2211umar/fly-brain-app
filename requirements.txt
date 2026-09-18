@@ -1,3 +1,4 @@
 streamlit
-neuprint-python
 pandas
+neuprint-python
+plotly
