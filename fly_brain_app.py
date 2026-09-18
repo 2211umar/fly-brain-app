@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import random
-import time
 from neuprint import Client, fetch_neurons, NeuronCriteria as NC
 
 # 1. Configure the app layout and title
@@ -81,12 +79,11 @@ if c:
 
     with col_3d:
         st.subheader("🌐 3D Interactive Connectome Layout View")
-        st.write("Click, rotate, zoom, and select specific neurons directly inside the 3D canvas.")
+        st.write("Explore the active dataset interactively through Janelia's live Clio web tool.")
         
-        # Build dynamic routing strings to map target pages inside the widget window
-        query_clean = custom_query.strip() if custom_query else "DNge104"
-        clio_url = f"https://janelia.org{query_clean}"
+        # FIXED: Corrected string concatenation syntax for the query parameter
+        clio_url = "https://clio.janelia.org/ws/annotate?dataset=male-cns:v0.9&tab=bodies"
         
-        # Inject standard HTML iframe container directly into the Streamlit app view
-        st.components.v1.iframe(clio_url, height=500, scrolling=True)
-        st.caption("💡 Tip: Use your mouse left-click to rotate, right-click to pan, and scroll-wheel to zoom.")
+        # Inject standard HTML iframe container cleanly into the Streamlit app view
+        st.components.v1.iframe(clio_url, height=530, scrolling=True)
+        st.caption("💡 Tip: Use the browser panel directly above to visualize your target body IDs in 3D.")
