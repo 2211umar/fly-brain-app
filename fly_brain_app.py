@@ -42,7 +42,7 @@ if c:
     limit = st.sidebar.slider("Max rows to fetch", 10, 500, 100)
     fetch_triggered = st.sidebar.button("Fetch Brain Data", type="primary")
 
-    # 4. Main Panel Split Layout (Data Table left, Clean 3D Mesh Canvas right)
+    # 4. Main Panel Split Layout (Data Table left, 3D Quick-Launch Hub right)
     col_table, col_3d = st.columns([1.1, 0.9])
 
     with col_table:
@@ -75,11 +75,36 @@ if c:
                     st.error(f"An error occurred: {e}")
 
     with col_3d:
-        st.subheader("🌐 Clean 3D Interactive Mesh Viewer")
-        st.write("Visualizing complete 3D cellular structures via the upgraded Neuroglancer environment.")
+        st.subheader("🌐 3D Interactive Model Quick-Launch")
+        st.write("Janelia protects its 3D environment from being embedded. Click below to launch the clean, full-screen 3D interactive viewer directly:")
         
-        # LINK CHANGE: Points to the cleaner, dedicated 3D interactive mesh showcase page
-        neuroglancer_url = "https://janelia.org"
+        # Format the active search term to pass to the portal
+        active_search = custom_query.strip() if custom_query else "DNge104"
         
-        st.components.v1.iframe(neuroglancer_url, height=530, scrolling=True)
-        st.caption("💡 Tip: Use your mouse wheel to zoom, left-click and drag to rotate the actual 3D cells.")
+        # Build direct-launch link matrices
+        neuprint_portal = "https://janelia.org"
+        clio_portal = f"https://janelia.org{active_search}"
+        
+        # Visual Launch Buttons
+        st.info(f"💡 Current Active Target: **{active_search}**")
+        
+        st.link_button(
+            "🚀 Open Upgraded 3D Mesh Viewer (NeuPrint v2)", 
+            url=neuprint_portal, 
+            use_container_width=True,
+            type="primary"
+        )
+        
+        st.link_button(
+            "🧬 Open Direct Clio Connectome Workbench", 
+            url=clio_portal, 
+            use_container_width=True
+        )
+        
+        st.markdown("""
+        ---
+        ### How to view the 3D cells instantly:
+        1. Click the **Upgraded 3D Mesh Viewer** button above.
+        2. In the new window, simply type your target (like **`""" + active_search + """`**) straight into their visual search bar.
+        3. The system will cleanly generate the true, colorful anatomical wireframes without loading those clunky black-and-white tissue slices!
+        """)
