@@ -5,7 +5,7 @@ from neuprint import Client, fetch_neurons, fetch_adjacencies, NeuronCriteria as
 
 st.set_page_config(
     page_title="Fruit Fly Brain Connectome Explorer",
-    page_icon="",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -48,36 +48,25 @@ st.markdown("""
     margin-bottom: 12px;
 }
 
-.card {
+.info-box {
     background: #131c31;
-    border: 1px solid #263451;
-    border-radius: 14px;
-    padding: 20px;
-    margin-bottom: 15px;
+    border: 1px solid #344362;
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 8px;
+    margin-bottom: 12px;
 }
 
-.metric-card {
-    background: #131c31;
-    border: 1px solid #263451;
-    border-radius: 14px;
-    padding: 18px;
-    text-align: center;
+.info-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 6px;
 }
 
-.metric-number {
-    font-size: 30px;
-    font-weight: 800;
-}
-
-.metric-label {
-    color: #8e9bb5;
-    font-size: 13px;
-    margin-top: 4px;
-}
-
-.small-text {
-    color: #8e9bb5;
-    font-size: 13px;
+.info-text {
+    color: #aab5ca;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 .stButton > button {
@@ -112,6 +101,12 @@ hr {
     border-color: #263451;
 }
 
+.brain-part {
+    font-size: 15px;
+    font-weight: 600;
+    padding-top: 5px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,7 +118,7 @@ st.markdown(
 
 st.markdown(
     '<div class="subtitle">'
-    'Explore neurons, connectivity, metadata and network relationships '
+    'Explore neurons, brain regions, connectivity and metadata '
     'from the Janelia neuPrint male-cns:v1.0 dataset.'
     '</div>',
     unsafe_allow_html=True
@@ -148,23 +143,30 @@ if "upstream" not in st.session_state:
 if "downstream" not in st.session_state:
     st.session_state.downstream = pd.DataFrame()
 
+if "brain_info" not in st.session_state:
+    st.session_state.brain_info = None
+
 
 @st.cache_resource
 def get_neuprint_client():
+
     try:
+
         token = st.secrets["NEUPRINT_TOKEN"]
 
-        client = Client(
+        return Client(
             "neuprint.janelia.org",
             dataset="male-cns:v1.0",
             token=token
         )
 
-        return client
-
     except Exception as e:
+
         st.error(
-            "Could not connect to neuPrint. "
+            "Could not connect to neuPrint."
+        )
+
+        st.caption(
             "Check that NEUPRINT_TOKEN is configured correctly."
         )
 
@@ -180,108 +182,95 @@ if client is None:
     st.stop()
 
 
-PRESETS = {
-    "Custom Search": "",
-    "Mushroom Body Output Neurons (MBON)": "MBON",
-    "Kenyon Cells (KC)": "KC",
-    "Descending Neurons (DNge)": "DNge",
-    "Lobula Columnar Neurons (LC)": "LC",
-    "Ellipsoid Ring Neurons (ER)": "ER",
-    "Antennal Lobe (AL)": "AL",
-    "Fan-Shaped Body (FB)": "FB",
-    "Ellipsoid Body (EB)": "EB",
-    "Lateral Horn (LH)": "LH",
-    "Central Complex": "CX"
+BRAIN_PARTS = {
+
+    "Mushroom Body": {
+        "search": "MBON",
+        "description":
+            "A brain region strongly associated with learning and memory. "
+            "Mushroom body output neurons help send processed information "
+            "to other parts of the brain."
+    },
+
+    "Kenyon Cells": {
+        "search": "KC",
+        "description":
+            "Kenyon cells are major neurons of the mushroom body. "
+            "They receive information from sensory systems and are "
+            "important for learning and memory."
+    },
+
+    "Descending Neurons": {
+        "search": "DNge",
+        "description":
+            "Descending neurons carry information from the brain toward "
+            "motor systems in the ventral nerve cord."
+    },
+
+    "Visual Neurons": {
+        "search": "LC",
+        "description":
+            "Lobula columnar neurons are involved in processing visual "
+            "information and responding to visual features."
+    },
+
+    "Ellipsoid Ring": {
+        "search": "ER",
+        "description":
+            "Ellipsoid ring neurons are associated with the central complex, "
+            "a region involved in navigation and behavioural control."
+    },
+
+    "Antennal Lobe": {
+        "search": "AL",
+        "description":
+            "The antennal lobe is an important olfactory processing region. "
+            "It receives information related to smells detected by the fly."
+    },
+
+    "Fan-Shaped Body": {
+        "search": "FB",
+        "description":
+            "The fan-shaped body is part of the central complex and is "
+            "involved in processing information used for behaviour and navigation."
+    },
+
+    "Ellipsoid Body": {
+        "search": "EB",
+        "description":
+            "The ellipsoid body is part of the central complex and has "
+            "important roles in navigation and spatial orientation."
+    },
+
+    "Lateral Horn": {
+        "search": "LH",
+        "description":
+            "The lateral horn is involved in processing olfactory information "
+            "and connecting sensory information with behavioural responses."
+    },
+
+    "Central Complex": {
+        "search": "CX",
+        "description":
+            "The central complex is a group of brain structures involved in "
+            "navigation, movement, orientation and behavioural control."
+    }
 }
 
 
-with st.sidebar:
+@st.dialog("Brain Part Information")
+def show_brain_info(name, description):
 
-    st.header("Search")
+    st.subheader(name)
 
-    search_mode = st.selectbox(
-        "Search by",
-        [
-            "Neuron Type",
-            "Neuron Instance",
-            "Body ID"
-        ]
-    )
-
-    preset = st.selectbox(
-        "Brain structure preset",
-        list(PRESETS.keys())
-    )
-
-    preset_value = PRESETS[preset]
-
-    if search_mode == "Body ID":
-
-        search_value = st.text_input(
-            "Body ID",
-            value=""
-        )
-
-    else:
-
-        search_value = st.text_input(
-            "Search value",
-            value=preset_value
-        )
-
-    exact_match = st.checkbox(
-        "Exact match",
-        value=False
-    )
-
-    max_results = st.slider(
-        "Maximum results",
-        min_value=10,
-        max_value=500,
-        value=100,
-        step=10
-    )
-
-    include_unclassified = st.checkbox(
-        "Include unclassified neurons",
-        value=False
-    )
-
-    search_button = st.button(
-        "Search Connectome",
-        use_container_width=True,
-        type="primary"
-    )
+    st.write(description)
 
     st.divider()
 
-    st.header("Quick Searches")
-
-    quick_searches = [
-        "MBON",
-        "KC",
-        "DNge",
-        "LC",
-        "ER"
-    ]
-
-    for quick in quick_searches:
-
-        if st.button(
-            quick,
-            use_container_width=True,
-            key=f"quick_{quick}"
-        ):
-            st.session_state.quick_search = quick
-
-
-    if "quick_search" in st.session_state:
-
-        search_value = st.session_state.quick_search
-        search_mode = "Neuron Type"
-        search_button = True
-
-        del st.session_state.quick_search
+    st.caption(
+        "This description is a simplified overview intended to help "
+        "with exploring the connectome."
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -301,28 +290,39 @@ def search_neurons(
     if search_mode == "Body ID":
 
         try:
+
             body_id = int(value)
 
         except ValueError:
+
             return pd.DataFrame()
 
-        criteria = NC(bodyId=body_id)
+        criteria = NC(
+            bodyId=body_id
+        )
 
     else:
 
         if exact_match:
+
             regex = f"^{value}$"
 
         else:
+
             regex = f".*{value}.*"
 
         if search_mode == "Neuron Type":
 
-            criteria = NC(type=regex)
+            criteria = NC(
+                type=regex
+            )
 
         else:
 
-            criteria = NC(instance=regex)
+            criteria = NC(
+                instance=regex
+            )
+
 
     neurons, _ = fetch_neurons(
         criteria,
@@ -330,26 +330,178 @@ def search_neurons(
     )
 
     if neurons is None or neurons.empty:
+
         return pd.DataFrame()
+
 
     if not include_unclassified and "type" in neurons.columns:
 
         neurons = neurons[
-            neurons["type"].fillna("").astype(str).str.strip() != ""
+            neurons["type"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            != ""
         ]
 
+
     return neurons.head(max_results)
+
+
+with st.sidebar:
+
+    st.header("Brain Structures")
+
+    st.caption(
+        "Select a structure or search manually."
+    )
+
+
+    selected_structure = st.selectbox(
+        "Structure",
+        [
+            "Custom Search"
+        ] + list(BRAIN_PARTS.keys())
+    )
+
+
+    if selected_structure != "Custom Search":
+
+        structure_data = BRAIN_PARTS[
+            selected_structure
+        ]
+
+        st.markdown(
+            f'<div class="brain-part">{selected_structure}</div>',
+            unsafe_allow_html=True
+        )
+
+        if st.button(
+            "i",
+            key="info_" + selected_structure,
+            help=f"Information about {selected_structure}"
+        ):
+
+            show_brain_info(
+                selected_structure,
+                structure_data["description"]
+            )
+
+        selected_preset = structure_data["search"]
+
+    else:
+
+        selected_preset = ""
+
+
+    st.divider()
+
+    st.header("Search")
+
+    search_mode = st.selectbox(
+        "Search by",
+        [
+            "Neuron Type",
+            "Neuron Instance",
+            "Body ID"
+        ]
+    )
+
+
+    if search_mode == "Body ID":
+
+        search_value = st.text_input(
+            "Body ID",
+            value=""
+        )
+
+    else:
+
+        search_value = st.text_input(
+            "Search value",
+            value=selected_preset
+        )
+
+
+    exact_match = st.checkbox(
+        "Exact match",
+        value=False
+    )
+
+
+    max_results = st.slider(
+        "Maximum results",
+        min_value=10,
+        max_value=500,
+        value=100,
+        step=10
+    )
+
+
+    include_unclassified = st.checkbox(
+        "Include unclassified neurons",
+        value=False
+    )
+
+
+    search_button = st.button(
+        "Search Connectome",
+        use_container_width=True,
+        type="primary"
+    )
+
+
+    st.divider()
+
+    st.header("Quick Searches")
+
+
+    quick_searches = [
+        "Mushroom Body",
+        "Kenyon Cells",
+        "Descending Neurons",
+        "Visual Neurons",
+        "Ellipsoid Ring"
+    ]
+
+
+    for quick_name in quick_searches:
+
+        if st.button(
+            quick_name,
+            use_container_width=True,
+            key="quick_" + quick_name
+        ):
+
+            st.session_state.quick_search = (
+                BRAIN_PARTS[quick_name]["search"]
+            )
+
+
+    if "quick_search" in st.session_state:
+
+        search_value = st.session_state.quick_search
+
+        search_mode = "Neuron Type"
+
+        search_button = True
+
+        del st.session_state.quick_search
 
 
 if search_button:
 
     if not search_value:
 
-        st.warning("Enter a search value first.")
+        st.warning(
+            "Enter a search value first."
+        )
 
     else:
 
-        with st.spinner("Searching the connectome..."):
+        with st.spinner(
+            "Searching the connectome..."
+        ):
 
             try:
 
@@ -363,7 +515,11 @@ if search_button:
 
                 st.session_state.results = results
 
-                search_record = f"{search_mode}: {search_value}"
+
+                search_record = (
+                    f"{search_mode}: {search_value}"
+                )
+
 
                 if search_record not in st.session_state.history:
 
@@ -372,9 +528,11 @@ if search_button:
                         search_record
                     )
 
+
                 st.session_state.history = (
                     st.session_state.history[:10]
                 )
+
 
             except Exception as e:
 
@@ -395,7 +553,9 @@ if not results.empty:
         unsafe_allow_html=True
     )
 
+
     neuron_count = len(results)
+
 
     if "type" in results.columns:
 
@@ -410,6 +570,7 @@ if not results.empty:
 
         type_count = 0
 
+
     if "instance" in results.columns:
 
         instance_count = (
@@ -423,6 +584,7 @@ if not results.empty:
 
         instance_count = 0
 
+
     if "bodyId" in results.columns:
 
         body_count = results["bodyId"].nunique()
@@ -434,12 +596,14 @@ if not results.empty:
 
     col1, col2, col3, col4 = st.columns(4)
 
+
     with col1:
 
         st.metric(
             "Neurons",
             f"{neuron_count:,}"
         )
+
 
     with col2:
 
@@ -448,12 +612,14 @@ if not results.empty:
             f"{type_count:,}"
         )
 
+
     with col3:
 
         st.metric(
             "Instances",
             f"{instance_count:,}"
         )
+
 
     with col4:
 
@@ -484,6 +650,7 @@ with tab1:
         unsafe_allow_html=True
     )
 
+
     if results.empty:
 
         st.info(
@@ -498,9 +665,11 @@ with tab1:
             height=520
         )
 
+
         csv_data = results.to_csv(
             index=False
         ).encode("utf-8")
+
 
         json_data = results.to_json(
             orient="records",
@@ -509,6 +678,7 @@ with tab1:
 
 
         col1, col2 = st.columns(2)
+
 
         with col1:
 
@@ -519,6 +689,7 @@ with tab1:
                 "text/csv",
                 use_container_width=True
             )
+
 
         with col2:
 
@@ -538,6 +709,7 @@ with tab2:
         unsafe_allow_html=True
     )
 
+
     if results.empty:
 
         st.info(
@@ -556,9 +728,16 @@ with tab2:
                 .head(20)
             )
 
-            st.subheader("Most Common Neuron Types")
 
-            st.bar_chart(type_counts)
+            st.subheader(
+                "Most Common Neuron Types"
+            )
+
+
+            st.bar_chart(
+                type_counts
+            )
+
 
         if "instance" in results.columns:
 
@@ -570,19 +749,31 @@ with tab2:
                 .head(20)
             )
 
-            st.subheader("Most Common Instances")
 
-            st.bar_chart(instance_counts)
+            st.subheader(
+                "Most Common Instances"
+            )
 
 
-        st.subheader("Data Completeness")
+            st.bar_chart(
+                instance_counts
+            )
+
+
+        st.subheader(
+            "Data Completeness"
+        )
+
 
         completeness = (
             results.notna()
             .mean()
-            .sort_values(ascending=False)
+            .sort_values(
+                ascending=False
+            )
             .head(20)
         )
+
 
         completeness_df = pd.DataFrame(
             {
@@ -591,6 +782,7 @@ with tab2:
             }
         )
 
+
         st.dataframe(
             completeness_df,
             use_container_width=True,
@@ -598,13 +790,22 @@ with tab2:
         )
 
 
-        numeric_columns = results.select_dtypes(
-            include="number"
-        ).columns.tolist()
+        numeric_columns = (
+            results
+            .select_dtypes(
+                include="number"
+            )
+            .columns
+            .tolist()
+        )
+
 
         if numeric_columns:
 
-            st.subheader("Numeric Statistics")
+            st.subheader(
+                "Numeric Statistics"
+            )
+
 
             st.dataframe(
                 results[numeric_columns].describe(),
@@ -618,6 +819,7 @@ with tab3:
         '<div class="section-title">Neuron Inspector</div>',
         unsafe_allow_html=True
     )
+
 
     if results.empty:
 
@@ -640,22 +842,30 @@ with tab3:
             .tolist()
         )
 
+
         selected_body_id = st.selectbox(
             "Select a neuron Body ID",
             body_ids
         )
 
+
         selected_rows = results[
             results["bodyId"] == selected_body_id
         ]
+
 
         if not selected_rows.empty:
 
             neuron = selected_rows.iloc[0]
 
-            st.session_state.selected_neuron = selected_body_id
+
+            st.session_state.selected_neuron = (
+                selected_body_id
+            )
+
 
             col1, col2, col3 = st.columns(3)
+
 
             with col1:
 
@@ -663,6 +873,7 @@ with tab3:
                     "Body ID",
                     str(selected_body_id)
                 )
+
 
             with col2:
 
@@ -675,6 +886,7 @@ with tab3:
                     "Type",
                     str(neuron_type)
                 )
+
 
             with col3:
 
@@ -689,7 +901,10 @@ with tab3:
                 )
 
 
-            st.subheader("Neuron Metadata")
+            st.subheader(
+                "Neuron Metadata"
+            )
+
 
             metadata = pd.DataFrame(
                 {
@@ -698,6 +913,7 @@ with tab3:
                 }
             )
 
+
             st.dataframe(
                 metadata,
                 use_container_width=True,
@@ -705,7 +921,10 @@ with tab3:
             )
 
 
-            favorite_key = int(selected_body_id)
+            favorite_key = int(
+                selected_body_id
+            )
+
 
             if favorite_key in st.session_state.favorites:
 
@@ -719,6 +938,7 @@ with tab3:
                     )
 
                     st.rerun()
+
 
             else:
 
@@ -734,13 +954,9 @@ with tab3:
                     st.rerun()
 
 
-            neuprint_url = (
-                "https://neuprint.janelia.org/"
-            )
-
             st.link_button(
                 "Open neuPrint",
-                neuprint_url,
+                "https://neuprint.janelia.org/",
                 use_container_width=True
             )
 
@@ -751,6 +967,7 @@ with tab4:
         '<div class="section-title">Connection Explorer</div>',
         unsafe_allow_html=True
     )
+
 
     if results.empty:
 
@@ -773,11 +990,13 @@ with tab4:
             .tolist()
         )
 
+
         connection_body_id = st.selectbox(
             "Neuron Body ID",
             body_ids,
             key="connection_body_id"
         )
+
 
         load_connections = st.button(
             "Load Connections",
@@ -794,17 +1013,29 @@ with tab4:
                 try:
 
                     criteria = NC(
-                        bodyId=int(connection_body_id)
+                        bodyId=int(
+                            connection_body_id
+                        )
                     )
 
-                    upstream, downstream = fetch_adjacencies(
-                        criteria,
-                        None,
-                        client=client
+
+                    upstream, downstream = (
+                        fetch_adjacencies(
+                            criteria,
+                            None,
+                            client=client
+                        )
                     )
 
-                    st.session_state.upstream = upstream
-                    st.session_state.downstream = downstream
+
+                    st.session_state.upstream = (
+                        upstream
+                    )
+
+                    st.session_state.downstream = (
+                        downstream
+                    )
+
 
                 except Exception as e:
 
@@ -816,16 +1047,24 @@ with tab4:
 
 
         upstream = st.session_state.upstream
+
         downstream = st.session_state.downstream
 
 
         col1, col2 = st.columns(2)
 
+
         with col1:
 
-            st.subheader("Upstream Neurons")
+            st.subheader(
+                "Upstream Neurons"
+            )
 
-            if upstream is not None and not upstream.empty:
+
+            if (
+                upstream is not None
+                and not upstream.empty
+            ):
 
                 st.dataframe(
                     upstream,
@@ -833,9 +1072,13 @@ with tab4:
                     height=400
                 )
 
-                upstream_csv = upstream.to_csv(
-                    index=False
-                ).encode("utf-8")
+
+                upstream_csv = (
+                    upstream
+                    .to_csv(index=False)
+                    .encode("utf-8")
+                )
+
 
                 st.download_button(
                     "Download Upstream CSV",
@@ -846,6 +1089,7 @@ with tab4:
                     key="download_upstream"
                 )
 
+
             else:
 
                 st.info(
@@ -855,9 +1099,15 @@ with tab4:
 
         with col2:
 
-            st.subheader("Downstream Neurons")
+            st.subheader(
+                "Downstream Neurons"
+            )
 
-            if downstream is not None and not downstream.empty:
+
+            if (
+                downstream is not None
+                and not downstream.empty
+            ):
 
                 st.dataframe(
                     downstream,
@@ -865,9 +1115,13 @@ with tab4:
                     height=400
                 )
 
-                downstream_csv = downstream.to_csv(
-                    index=False
-                ).encode("utf-8")
+
+                downstream_csv = (
+                    downstream
+                    .to_csv(index=False)
+                    .encode("utf-8")
+                )
+
 
                 st.download_button(
                     "Download Downstream CSV",
@@ -877,6 +1131,7 @@ with tab4:
                     use_container_width=True,
                     key="download_downstream"
                 )
+
 
             else:
 
@@ -893,12 +1148,16 @@ with tab5:
     )
 
 
-    st.subheader("neuPrint")
+    st.subheader(
+        "neuPrint"
+    )
+
 
     st.write(
         "Open the official neuPrint environment to explore "
         "the connectome using the browser interface."
     )
+
 
     st.link_button(
         "Open neuPrint",
@@ -910,12 +1169,16 @@ with tab5:
     st.divider()
 
 
-    st.subheader("Direct Body ID Lookup")
+    st.subheader(
+        "Direct Body ID Lookup"
+    )
+
 
     body_lookup = st.text_input(
         "Enter a Body ID",
         key="body_lookup"
     )
+
 
     if st.button(
         "Find Body ID",
@@ -924,16 +1187,23 @@ with tab5:
 
         try:
 
-            body_id = int(body_lookup)
+            body_id = int(
+                body_lookup
+            )
+
 
             lookup_criteria = NC(
                 bodyId=body_id
             )
 
-            lookup_results, _ = fetch_neurons(
-                lookup_criteria,
-                client=client
+
+            lookup_results, _ = (
+                fetch_neurons(
+                    lookup_criteria,
+                    client=client
+                )
             )
+
 
             if lookup_results.empty:
 
@@ -947,16 +1217,19 @@ with tab5:
                     "Neuron found."
                 )
 
+
                 st.dataframe(
                     lookup_results,
                     use_container_width=True
                 )
+
 
         except ValueError:
 
             st.warning(
                 "Body ID must be a number."
             )
+
 
         except Exception as e:
 
@@ -970,7 +1243,10 @@ with tab5:
     st.divider()
 
 
-    st.subheader("Search History")
+    st.subheader(
+        "Search History"
+    )
+
 
     if st.session_state.history:
 
@@ -990,15 +1266,20 @@ with tab5:
     st.divider()
 
 
-    st.subheader("Favorites")
+    st.subheader(
+        "Favorites"
+    )
+
 
     if st.session_state.favorites:
 
         favorite_df = pd.DataFrame(
             {
-                "Body ID": st.session_state.favorites
+                "Body ID":
+                st.session_state.favorites
             }
         )
+
 
         st.dataframe(
             favorite_df,
@@ -1016,7 +1297,10 @@ with tab5:
     st.divider()
 
 
-    st.subheader("Dataset Information")
+    st.subheader(
+        "Dataset Information"
+    )
+
 
     st.write(
         "Dataset: male-cns:v1.0"
@@ -1032,6 +1316,7 @@ with tab5:
 
 
 st.divider()
+
 
 st.caption(
     "Fruit Fly Brain Connectome Explorer | "
