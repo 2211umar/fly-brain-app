@@ -5,7 +5,7 @@ from neuprint import Client, fetch_neurons, NeuronCriteria as NC
 # 1. Configure the app layout and title
 st.set_page_config(page_title="Fruit Fly Brain Connectome Explorer", layout="wide")
 st.title("🧠 Fruit Fly Brain Connectome Explorer")
-st.write("Search, view 3D structures, and download data from the Janelia male-cns:v1.0 dataset.")
+st.write("Search, view clean 3D models, and download data from the Janelia male-cns:v1.0 dataset.")
 
 # 2. Securely connect to the database using Cloud Secrets
 @st.cache_resource
@@ -19,11 +19,10 @@ def get_neuprint_client():
 
 c = get_neuprint_client()
 
-# 3. Clean Single-Page Sidebar Control Layout
+# 3. Sidebar Control Layout
 if c:
     st.sidebar.header("Search Filters")
     
-    # Dual Search: Dropdown Selector
     preset_options = {
         "Custom Type (Use Text Box Below)": "",
         "Memory Center (MBON - Mushroom Body Output)": "MBON",
@@ -35,7 +34,6 @@ if c:
     selected_preset = st.sidebar.selectbox("Choose a Brain Structure Preset:", list(preset_options.keys()))
     preset_value = preset_options[selected_preset]
     
-    # Dual Search: Text Input Field
     custom_query = st.sidebar.text_input(
         "Or type custom Neuron Type/Instance manually:", 
         value=preset_value if preset_value else "DNge104"
@@ -44,13 +42,12 @@ if c:
     limit = st.sidebar.slider("Max rows to fetch", 10, 500, 100)
     fetch_triggered = st.sidebar.button("Fetch Brain Data", type="primary")
 
-    # 4. Main Panel Split Layout (Data Table left, Interactive 3D Canvas right)
+    # 4. Main Panel Split Layout (Data Table left, Clean 3D Mesh Canvas right)
     col_table, col_3d = st.columns([1.1, 0.9])
 
     with col_table:
         st.subheader("📊 Connectome Inventory Data")
         
-        # Pull data when button is pushed or initialize layout gracefully
         if fetch_triggered or custom_query:
             with st.spinner("Querying the fly brain connectome..."):
                 try:
@@ -78,12 +75,11 @@ if c:
                     st.error(f"An error occurred: {e}")
 
     with col_3d:
-        st.subheader("🌐 3D Interactive Connectome Layout View")
-        st.write("Explore the active dataset interactively through Janelia's live Clio web tool.")
+        st.subheader("🌐 Clean 3D Interactive Mesh Viewer")
+        st.write("Visualizing complete 3D cellular structures via the upgraded Neuroglancer environment.")
         
-        # FIXED: Corrected string concatenation syntax for the query parameter
-        clio_url = "https://clio.janelia.org/ws/annotate?dataset=male-cns:v0.9&tab=bodies"
+        # LINK CHANGE: Points to the cleaner, dedicated 3D interactive mesh showcase page
+        neuroglancer_url = "https://janelia.org"
         
-        # Inject standard HTML iframe container cleanly into the Streamlit app view
-        st.components.v1.iframe(clio_url, height=530, scrolling=True)
-        st.caption("💡 Tip: Use the browser panel directly above to visualize your target body IDs in 3D.")
+        st.components.v1.iframe(neuroglancer_url, height=530, scrolling=True)
+        st.caption("💡 Tip: Use your mouse wheel to zoom, left-click and drag to rotate the actual 3D cells.")
